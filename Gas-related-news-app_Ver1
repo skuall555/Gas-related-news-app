@@ -718,27 +718,12 @@ const STORAGE_CACHE = 'techpulse_cache';
 const STORAGE_BOOKMARKS = 'techpulse_bookmarks';
 const STORAGE_DATE_RANGE = 'techpulse_daterange';
 
-// CORS proxies: used as fallback when rss2json fails
+// CORS proxies: fallback for when rss2json fails
 // corsproxy.io removed — blocks null origin (file://)
 const CORS_PROXIES = [
   'https://api.allorigins.win/raw?url=',
   'https://api.codetabs.com/v1/proxy?quest=',
-  'https://corsproxy.io/?url=',
 ];
-
-// PR TIMES RSS feeds per tag keyword
-const PRTIMES_RSS = {
-  'ドローン':        'https://prtimes.jp/topics_keywords/ドローン/feed',
-  '自動運転':        'https://prtimes.jp/topics_keywords/自動運転/feed',
-  'AI 人工知能':     'https://prtimes.jp/topics_keywords/AI/feed',
-  'EV 電気自動車':   'https://prtimes.jp/topics_keywords/電気自動車/feed',
-  '水素エネルギー':  'https://prtimes.jp/topics_keywords/水素エネルギー/feed',
-  '再生可能エネルギー': 'https://prtimes.jp/topics_keywords/再生可能エネルギー/feed',
-  'スマートシティ':  'https://prtimes.jp/topics_keywords/スマートシティ/feed',
-  '半導体':          'https://prtimes.jp/topics_keywords/半導体/feed',
-  '宇宙開発':        'https://prtimes.jp/topics_keywords/宇宙/feed',
-  'IoT':             'https://prtimes.jp/topics_keywords/IoT/feed',
-};
 
 const PRESET_TAGS = [
   '自動運転', 'AI 人工知能', '都市ガス', 'LPガス',
@@ -876,7 +861,7 @@ function parseRSS2JSONItems(items, tag) {
   });
 }
 
-// Fallback: raw CORS proxies returning XML
+// Fallback: CORS proxies returning raw XML
 async function fetchViaProxy(url, tag) {
   const attempts = CORS_PROXIES.map(async proxy => {
     const resp = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
@@ -887,10 +872,23 @@ async function fetchViaProxy(url, tag) {
     }
     return parseRSS(text, tag);
   });
-  return Promise.any(attempts); // throws AggregateError if all fail
+
+  // Also try allorigins /get endpoint (JSON wrapper — different behavior from /raw)
+  attempts.push((async () => {
+    const resp = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) throw new Error('allorigins/get HTTP ' + resp.status);
+    const data = await resp.json();
+    if (!data.contents) throw new Error('allorigins/get empty');
+    if (!(data.contents.includes('<rss') || data.contents.includes('<?xml') || data.contents.includes('<feed'))) {
+      throw new Error('allorigins/get not RSS');
+    }
+    return parseRSS(data.contents, tag);
+  })());
+
+  return Promise.any(attempts);
 }
 
-// Unified fetch: try rss2json and proxies simultaneously
+// Unified fetch: rss2json + proxies simultaneously, first success wins
 async function fetchFeed(url, tag) {
   try {
     return await Promise.any([
@@ -973,20 +971,23 @@ function cleanText(text) {
 }
 
 async function fetchForTag(tag) {
-  // Google News RSS (with date range)
+  // PR TIMES keyword RSS: works for ANY tag, most reliable source
+  // (not blocked by proxy services unlike Google/Bing)
+  const prtimesUrl = `https://prtimes.jp/topics_keywords/${encodeURIComponent(tag)}/feed`;
+
+  // Google News RSS (with date range — may fail via proxy, but try)
   const q = encodeURIComponent(`${tag} when:${dateRange}`);
   const googleUrl = `https://news.google.com/rss/search?q=${q}&hl=ja&gl=JP&ceid=JP:ja`;
 
-  // Bing News RSS (different index from Google, no API key)
-  const bingUrl = `https://www.bing.com/news/search?q=${encodeURIComponent(tag)}&format=rss&setlang=ja&cc=JP`;
-
-  // はてなブックマーク RSS (popular Japanese articles)
+  // はてなブックマーク RSS (popular articles — may fail, but try)
   const hatenaUrl = `https://b.hatena.ne.jp/q/${encodeURIComponent(tag)}?mode=rss&sort=popular`;
 
-  const sources = [googleUrl, bingUrl, hatenaUrl];
-  if (PRTIMES_RSS[tag]) sources.push(PRTIMES_RSS[tag]);
-
-  const results = await Promise.all(sources.map(url => fetchFeed(url, tag)));
+  // PR TIMES first (most reliable), then Google/Hatena as bonus
+  const results = await Promise.all([
+    fetchFeed(prtimesUrl, tag),
+    fetchFeed(googleUrl, tag),
+    fetchFeed(hatenaUrl, tag),
+  ]);
   return results.flat();
 }
 
