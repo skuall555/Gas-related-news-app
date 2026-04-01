@@ -608,6 +608,7 @@ body {
 const STORAGE_TAGS = 'techpulse_tags';
 const STORAGE_CACHE = 'techpulse_cache';
 const CORS_PROXIES = [
+  'https://corsproxy.io/?',
   'https://api.allorigins.win/raw?url=',
   'https://api.codetabs.com/v1/proxy?quest='
 ];
@@ -716,9 +717,14 @@ function renderPresets() {
 async function fetchRSS(url) {
   for (const proxy of CORS_PROXIES) {
     try {
-      const resp = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
-      if (resp.ok) return await resp.text();
-    } catch {}
+      const resp = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
+      if (resp.ok) {
+        const text = await resp.text();
+        if (text && text.includes('<item>')) return text;
+      }
+    } catch (e) {
+      console.warn(`Proxy failed (${proxy}):`, e.message);
+    }
   }
   return null;
 }
@@ -726,12 +732,23 @@ async function fetchRSS(url) {
 function parseRSS(xml, tag) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xml, 'text/xml');
+  if (doc.querySelector('parsererror')) {
+    console.warn(`RSS parse error for tag "${tag}"`);
+    return [];
+  }
   const items = doc.querySelectorAll('item');
   const result = [];
 
   items.forEach(item => {
     const title = item.querySelector('title')?.textContent || '';
-    const link = item.querySelector('link')?.textContent || '';
+    // <link> in RSS is sometimes a sibling text node, not child text
+    let link = item.querySelector('link')?.textContent || '';
+    if (!link) {
+      // Fallback: try nextSibling of <link> element (RSS quirk with DOMParser)
+      const linkEl = item.querySelector('link');
+      if (linkEl && linkEl.nextSibling) link = linkEl.nextSibling.textContent?.trim() || '';
+    }
+    if (!link) link = item.querySelector('guid')?.textContent || '';
     const pubDate = item.querySelector('pubDate')?.textContent || '';
     const description = item.querySelector('description')?.textContent || '';
     const source = item.querySelector('source')?.textContent || extractDomain(link);
@@ -830,7 +847,11 @@ async function refreshAll() {
   btn.disabled = false;
   icon.classList.remove('refresh-spin');
 
-  showToast(`${articles.length}件の記事を取得しました`, 'success');
+  if (articles.length === 0) {
+    showToast('記事を取得できませんでした。ネットワークを確認して再度お試しください', 'error');
+  } else {
+    showToast(`${articles.length}件の記事を取得しました`, 'success');
+  }
 }
 
 // ========================
