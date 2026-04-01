@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TechPulse - 最新技術コラム アグリゲーター</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #232735;
+  --border: #2e3347;
+  --text: #e4e6f0;
+  --text-dim: #8a8ea3;
+  --accent: #6c5ce7;
+  --accent-light: #a29bfe;
+  --accent-glow: rgba(108, 92, 231, 0.3);
+  --danger: #e74c3c;
+  --success: #2ecc71;
+  --tag-bg: #2d2a5e;
+  --tag-active: #6c5ce7;
+}
+
+body {
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #1a1d27 0%, #2d2a5e 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  width: 42px;
+  height: 42px;
+  background: var(--accent);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.logo h1 {
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #fff, var(--accent-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.logo p {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 0 15px var(--accent-glow);
+}
+.btn-primary:hover {
+  background: #7c6ff7;
+  box-shadow: 0 0 25px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover {
+  background: var(--border);
+}
+
+.btn-icon {
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-icon:hover { background: var(--border); }
+
+.refresh-spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Main Layout */
+.main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .main { grid-template-columns: 1fr; }
+  .sidebar { position: static !important; }
+}
+
+/* Sidebar */
+.sidebar {
+  position: sticky;
+  top: 100px;
+  align-self: start;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Tag Input */
+.tag-input-wrap {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tag-input-wrap input {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.tag-input-wrap input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+.tag-input-wrap input::placeholder { color: var(--text-dim); }
+
+.btn-add {
+  padding: 10px 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 700;
+  transition: all 0.2s;
+  line-height: 1;
+}
+.btn-add:hover { background: #7c6ff7; }
+
+/* Tags */
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  padding: 8px 14px;
+  background: var(--tag-bg);
+  border: 1px solid transparent;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.tag:hover { background: #3d3a7e; }
+.tag.active {
+  background: var(--tag-active);
+  border-color: var(--accent-light);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.tag-remove {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  line-height: 1;
+}
+.tag-remove:hover { background: var(--danger); }
+
+.tag-all {
+  padding: 8px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tag-all:hover { background: var(--border); }
+.tag-all.active {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Stats */
+.stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.stat {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+}
+
+.stat-num {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-light);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* Feed */
+.feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.feed-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.feed-meta {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.article-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Article Card */
+.article {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  transition: all 0.25s;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.article:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 20px rgba(108, 92, 231, 0.15);
+  transform: translateY(-2px);
+}
+
+.article-source {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.article-source-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.article-title {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.article-snippet {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.article-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.article-date {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.article-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.article-tag {
+  padding: 4px 10px;
+  background: var(--tag-bg);
+  border-radius: 12px;
+  font-size: 11px;
+  color: var(--accent-light);
+}
+
+/* Loading */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 16px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.loading-text {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* Empty */
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty p {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* Toast */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  padding: 12px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 14px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  animation: slideIn 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toast.success { border-color: var(--success); }
+.toast.error { border-color: var(--danger); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Preset Tags */
+.preset-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.preset-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.preset-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-tag {
+  padding: 6px 12px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.preset-tag:hover {
+  border-color: var(--accent);
+  color: var(--accent-light);
+  background: var(--tag-bg);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">&#x26A1;</div>
+      <div>
+        <h1>TechPulse</h1>
+        <p>最新技術コラム アグリゲーター</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span id="lastUpdated" class="feed-meta"></span>
+      <button class="btn btn-primary" onclick="refreshAll()" id="refreshBtn">
+        <span id="refreshIcon">&#x21BB;</span> 更新
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+  <aside class="sidebar">
+    <!-- Tag Management -->
+    <div class="panel">
+      <div class="panel-title">&#x1F3F7;&#xFE0F; タグ管理</div>
+      <div class="tag-input-wrap">
+        <input type="text" id="tagInput" placeholder="新しいタグを追加..."
+               onkeydown="if(event.key==='Enter')addTag()">
+        <button class="btn-add" onclick="addTag()">+</button>
+      </div>
+      <div class="tag-list" id="tagList"></div>
+
+      <div class="preset-section">
+        <div class="preset-label">おすすめタグ (クリックで追加)</div>
+        <div class="preset-tags" id="presetTags"></div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel">
+      <div class="panel-title">&#x1F4CA; ステータス</div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-num" id="statArticles">0</div>
+          <div class="stat-label">記事数</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num" id="statTags">0</div>
+          <div class="stat-label">タグ数</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <section class="feed">
+    <div class="feed-header">
+      <h2 class="feed-title" id="feedTitle">すべての記事</h2>
+      <span class="feed-meta" id="feedCount"></span>
+    </div>
+    <div class="article-list" id="articleList">
+      <div class="empty">
+        <div class="empty-icon">&#x1F4E1;</div>
+        <p>タグを追加して「更新」ボタンを押してください<br>最新の技術コラム・ニュースが表示されます</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ========================
+// State
+// ========================
+const STORAGE_TAGS = 'techpulse_tags';
+const STORAGE_CACHE = 'techpulse_cache';
+const CORS_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://api.codetabs.com/v1/proxy?quest='
+];
+
+const PRESET_TAGS = [
+  '自動運転', 'AI 人工知能', '都市ガス', 'LPガス',
+  '再生可能エネルギー', '量子コンピュータ', 'ブロックチェーン',
+  'IoT', 'ロボティクス', '5G 通信', 'サイバーセキュリティ',
+  '宇宙開発', 'EV 電気自動車', 'メタバース', 'DX デジタル変革',
+  '半導体', 'ドローン', 'スマートシティ', 'バイオテクノロジー',
+  '水素エネルギー'
+];
+
+let tags = [];
+let activeFilter = null; // null = all
+let articles = [];
+let isLoading = false;
+
+// ========================
+// Init
+// ========================
+function init() {
+  loadTags();
+  renderTags();
+  renderPresets();
+  loadCache();
+  renderArticles();
+}
+
+// ========================
+// Tag Management
+// ========================
+function loadTags() {
+  try {
+    const saved = localStorage.getItem(STORAGE_TAGS);
+    tags = saved ? JSON.parse(saved) : ['AI 人工知能', '自動運転', 'DX デジタル変革'];
+    if (!saved) saveTags();
+  } catch { tags = []; }
+}
+
+function saveTags() {
+  localStorage.setItem(STORAGE_TAGS, JSON.stringify(tags));
+}
+
+function addTag(name) {
+  const input = document.getElementById('tagInput');
+  const tagName = (name || input.value).trim();
+  if (!tagName) return;
+  if (tags.includes(tagName)) {
+    showToast('このタグは既に存在します', 'error');
+    return;
+  }
+  tags.push(tagName);
+  saveTags();
+  if (!name) input.value = '';
+  renderTags();
+  renderPresets();
+  updateStats();
+  showToast(`「${tagName}」を追加しました`, 'success');
+}
+
+function removeTag(tagName) {
+  tags = tags.filter(t => t !== tagName);
+  saveTags();
+  if (activeFilter === tagName) activeFilter = null;
+  // Remove cached articles for this tag
+  articles = articles.filter(a => !a.tags.includes(tagName));
+  saveCache();
+  renderTags();
+  renderPresets();
+  renderArticles();
+  showToast(`「${tagName}」を削除しました`, 'success');
+}
+
+function setFilter(tag) {
+  activeFilter = activeFilter === tag ? null : tag;
+  renderTags();
+  renderArticles();
+}
+
+function renderTags() {
+  const list = document.getElementById('tagList');
+  let html = `<div class="tag-all ${activeFilter === null ? 'active' : ''}" onclick="setFilter(null)">すべて</div>`;
+  tags.forEach(tag => {
+    html += `
+      <div class="tag ${activeFilter === tag ? 'active' : ''}" onclick="setFilter('${escHtml(tag)}')">
+        <span>${escHtml(tag)}</span>
+        <button class="tag-remove" onclick="event.stopPropagation();removeTag('${escHtml(tag)}')" title="削除">&times;</button>
+      </div>`;
+  });
+  list.innerHTML = html;
+  updateStats();
+}
+
+function renderPresets() {
+  const container = document.getElementById('presetTags');
+  const available = PRESET_TAGS.filter(p => !tags.includes(p));
+  container.innerHTML = available.slice(0, 10).map(p =>
+    `<div class="preset-tag" onclick="addTag('${escHtml(p)}')">${escHtml(p)}</div>`
+  ).join('');
+}
+
+// ========================
+// Article Fetching
+// ========================
+async function fetchRSS(url) {
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const resp = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
+      if (resp.ok) return await resp.text();
+    } catch {}
+  }
+  return null;
+}
+
+function parseRSS(xml, tag) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xml, 'text/xml');
+  const items = doc.querySelectorAll('item');
+  const result = [];
+
+  items.forEach(item => {
+    const title = item.querySelector('title')?.textContent || '';
+    const link = item.querySelector('link')?.textContent || '';
+    const pubDate = item.querySelector('pubDate')?.textContent || '';
+    const description = item.querySelector('description')?.textContent || '';
+    const source = item.querySelector('source')?.textContent || extractDomain(link);
+
+    // Clean HTML from description
+    const div = document.createElement('div');
+    div.innerHTML = description;
+    const snippet = div.textContent.trim().substring(0, 300);
+
+    result.push({
+      id: link + tag,
+      title: cleanText(title),
+      link,
+      pubDate: pubDate ? new Date(pubDate) : new Date(),
+      snippet,
+      source,
+      tags: [tag]
+    });
+  });
+  return result;
+}
+
+function extractDomain(url) {
+  try { return new URL(url).hostname.replace('www.', ''); } catch { return ''; }
+}
+
+function cleanText(text) {
+  const div = document.createElement('div');
+  div.innerHTML = text;
+  return div.textContent.trim();
+}
+
+async function fetchForTag(tag) {
+  const query = encodeURIComponent(tag);
+  const url = `https://news.google.com/rss/search?q=${query}+when:7d&hl=ja&gl=JP&ceid=JP:ja`;
+  const xml = await fetchRSS(url);
+  if (!xml) return [];
+  return parseRSS(xml, tag);
+}
+
+async function refreshAll() {
+  if (isLoading) return;
+  if (tags.length === 0) {
+    showToast('先にタグを追加してください', 'error');
+    return;
+  }
+
+  isLoading = true;
+  const btn = document.getElementById('refreshBtn');
+  const icon = document.getElementById('refreshIcon');
+  btn.disabled = true;
+  icon.classList.add('refresh-spin');
+
+  document.getElementById('articleList').innerHTML = `
+    <div class="loading">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">最新記事を取得中...</div>
+    </div>`;
+
+  const allArticles = [];
+  const fetches = tags.map(async tag => {
+    try {
+      const items = await fetchForTag(tag);
+      allArticles.push(...items);
+    } catch (e) {
+      console.warn(`Failed to fetch tag "${tag}":`, e);
+    }
+  });
+
+  await Promise.all(fetches);
+
+  // Merge & deduplicate by link
+  const seen = new Map();
+  allArticles.forEach(a => {
+    const key = a.link;
+    if (seen.has(key)) {
+      const existing = seen.get(key);
+      a.tags.forEach(t => { if (!existing.tags.includes(t)) existing.tags.push(t); });
+    } else {
+      seen.set(key, a);
+    }
+  });
+
+  articles = Array.from(seen.values());
+  articles.sort((a, b) => b.pubDate - a.pubDate);
+
+  saveCache();
+  renderArticles();
+  updateStats();
+
+  const now = new Date();
+  document.getElementById('lastUpdated').textContent =
+    `最終更新: ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+  isLoading = false;
+  btn.disabled = false;
+  icon.classList.remove('refresh-spin');
+
+  showToast(`${articles.length}件の記事を取得しました`, 'success');
+}
+
+// ========================
+// Cache
+// ========================
+function saveCache() {
+  try {
+    const data = articles.map(a => ({ ...a, pubDate: a.pubDate.toISOString() }));
+    localStorage.setItem(STORAGE_CACHE, JSON.stringify(data));
+  } catch {}
+}
+
+function loadCache() {
+  try {
+    const saved = localStorage.getItem(STORAGE_CACHE);
+    if (saved) {
+      articles = JSON.parse(saved).map(a => ({ ...a, pubDate: new Date(a.pubDate) }));
+    }
+  } catch { articles = []; }
+}
+
+// ========================
+// Rendering
+// ========================
+function renderArticles() {
+  const list = document.getElementById('articleList');
+  const titleEl = document.getElementById('feedTitle');
+  const countEl = document.getElementById('feedCount');
+
+  let filtered = articles;
+  if (activeFilter) {
+    filtered = articles.filter(a => a.tags.includes(activeFilter));
+    titleEl.textContent = `${activeFilter} の記事`;
+  } else {
+    titleEl.textContent = 'すべての記事';
+  }
+
+  countEl.textContent = `${filtered.length}件`;
+  document.getElementById('statArticles').textContent = articles.length;
+
+  if (filtered.length === 0 && articles.length === 0) {
+    list.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">&#x1F4E1;</div>
+        <p>タグを追加して「更新」ボタンを押してください<br>最新の技術コラム・ニュースが表示されます</p>
+      </div>`;
+    return;
+  }
+
+  if (filtered.length === 0) {
+    list.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">&#x1F50D;</div>
+        <p>「${escHtml(activeFilter)}」に一致する記事がありません</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(a => `
+    <a class="article" href="${escHtml(a.link)}" target="_blank" rel="noopener">
+      <div class="article-source">
+        <span class="article-source-dot"></span>
+        ${escHtml(a.source)}
+      </div>
+      <div class="article-title">${escHtml(a.title)}</div>
+      ${a.snippet ? `<div class="article-snippet">${escHtml(a.snippet)}</div>` : ''}
+      <div class="article-footer">
+        <span class="article-date">${formatDate(a.pubDate)}</span>
+        <div class="article-tags">
+          ${a.tags.map(t => `<span class="article-tag">${escHtml(t)}</span>`).join('')}
+        </div>
+      </div>
+    </a>
+  `).join('');
+}
+
+function formatDate(date) {
+  const now = new Date();
+  const diff = now - date;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}分前`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}時間前`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}日前`;
+  return `${date.getFullYear()}/${date.getMonth()+1}/${date.getDate()}`;
+}
+
+function updateStats() {
+  document.getElementById('statTags').textContent = tags.length;
+  document.getElementById('statArticles').textContent = articles.length;
+}
+
+// ========================
+// Utilities
+// ========================
+function escHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function showToast(msg, type = '') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${type === 'success' ? '&#x2714;' : type === 'error' ? '&#x2718;' : '&#x2139;'}</span> ${msg}`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(30px)';
+    toast.style.transition = 'all 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// ========================
+// Start
+// ========================
+init();
+</script>
+</body>
+</html>
