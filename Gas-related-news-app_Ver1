@@ -934,24 +934,29 @@ function cleanText(text) {
 }
 
 async function fetchForTag(tag) {
-  // Use URLSearchParams for correct Japanese encoding (no manual encodeURIComponent)
-  const params = new URLSearchParams({
+  // Google News (keyword + date range)
+  const gnParams = new URLSearchParams({
     q: `${tag} when:${dateRange}`,
-    hl: 'ja',
-    gl: 'JP',
-    ceid: 'JP:ja'
+    hl: 'ja', gl: 'JP', ceid: 'JP:ja'
   });
-  const googleUrl = `https://news.google.com/rss/search?${params}`;
+  const googleUrl = `https://news.google.com/rss/search?${gnParams}`;
+
+  // Bing News RSS (free, no API key, different index from Google)
+  const bingParams = new URLSearchParams({ q: tag, format: 'rss', setlang: 'ja', cc: 'JP' });
+  const bingUrl = `https://www.bing.com/news/search?${bingParams}`;
+
+  // はてなブックマーク RSS (free, popular Japanese articles)
+  const hatenaUrl = `https://b.hatena.ne.jp/q/${encodeURIComponent(tag)}?mode=rss&sort=popular`;
 
   const fetches = [
-    fetchRSS(googleUrl).then(xml => xml ? parseRSS(xml, tag) : [])
+    fetchRSS(googleUrl).then(xml => xml ? parseRSS(xml, tag) : []),
+    fetchRSS(bingUrl).then(xml => xml ? parseRSS(xml, tag) : []),
+    fetchRSS(hatenaUrl).then(xml => xml ? parseRSS(xml, tag) : []),
   ];
 
-  // Also fetch from PR TIMES if a feed exists for this tag
+  // PR TIMES if a feed mapping exists for this tag
   if (PRTIMES_RSS[tag]) {
-    fetches.push(
-      fetchRSS(PRTIMES_RSS[tag]).then(xml => xml ? parseRSS(xml, tag) : [])
-    );
+    fetches.push(fetchRSS(PRTIMES_RSS[tag]).then(xml => xml ? parseRSS(xml, tag) : []));
   }
 
   const results = await Promise.all(fetches);
