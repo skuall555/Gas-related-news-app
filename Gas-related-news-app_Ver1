@@ -524,6 +524,33 @@ body {
   background: var(--tag-bg);
 }
 
+/* Refresh button in sidebar */
+.btn-refresh {
+  width: 100%;
+  padding: 14px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 15px var(--accent-glow);
+  margin-bottom: 6px;
+}
+.btn-refresh:hover:not(:disabled) {
+  background: #7c6ff7;
+  box-shadow: 0 6px 25px var(--accent-glow);
+  transform: translateY(-1px);
+}
+.btn-refresh:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
+.last-updated-sidebar { font-size: 11px; color: var(--text-dim); text-align: center; min-height: 16px; }
+
 /* Date Range */
 .date-range-select {
   width: 100%;
@@ -611,9 +638,6 @@ body {
     </div>
     <div class="header-actions">
       <span id="lastUpdated" class="feed-meta"></span>
-      <button class="btn btn-primary" onclick="refreshAll()" id="refreshBtn">
-        <span id="refreshIcon">&#x21BB;</span> 更新
-      </button>
     </div>
   </div>
 </header>
@@ -660,8 +684,13 @@ body {
         <option value="90d">過去 90日</option>
         <option value="365d">過去 1年</option>
       </select>
-      <p class="date-range-hint">変更後は「更新」ボタンを押してください</p>
     </div>
+
+    <!-- Refresh -->
+    <button class="btn-refresh" id="refreshBtn" onclick="refreshAll()">
+      <span id="refreshIcon">&#x21BB;</span> 更新する
+    </button>
+    <div class="last-updated-sidebar" id="lastUpdatedSidebar"></div>
   </aside>
 
   <section class="feed">
@@ -817,19 +846,22 @@ function renderPresets() {
 // Article Fetching
 // ========================
 async function fetchRSS(url) {
-  for (const proxy of CORS_PROXIES) {
-    try {
-      const resp = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
-      if (resp.ok) {
-        const text = await resp.text();
-        // Accept any XML/RSS response (even empty feed with 0 items)
-        if (text && (text.includes('<rss') || text.includes('<?xml') || text.includes('<feed'))) return text;
-      }
-    } catch (e) {
-      console.warn(`Proxy failed (${proxy}):`, e.message);
+  // Fire all proxies simultaneously — take whichever responds first with valid RSS
+  const attempts = CORS_PROXIES.map(async proxy => {
+    const resp = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+    if (!text || !(text.includes('<rss') || text.includes('<?xml') || text.includes('<feed'))) {
+      throw new Error('Not RSS/XML');
     }
+    return text;
+  });
+  try {
+    return await Promise.any(attempts);
+  } catch {
+    console.warn('All proxies failed for:', url);
+    return null;
   }
-  return null;
 }
 
 function parseRSS(xml, tag) {
@@ -926,6 +958,19 @@ async function fetchForTag(tag) {
   return results.flat();
 }
 
+function mergeArticles(pool) {
+  const seen = new Map();
+  pool.forEach(a => {
+    if (seen.has(a.link)) {
+      const ex = seen.get(a.link);
+      a.tags.forEach(t => { if (!ex.tags.includes(t)) ex.tags.push(t); });
+    } else {
+      seen.set(a.link, { ...a, tags: [...a.tags] });
+    }
+  });
+  return Array.from(seen.values()).sort((a, b) => b.pubDate - a.pubDate);
+}
+
 async function refreshAll() {
   if (isLoading) return;
   if (tags.length === 0) {
@@ -942,10 +987,12 @@ async function refreshAll() {
   document.getElementById('articleList').innerHTML = `
     <div class="loading">
       <div class="loading-spinner"></div>
-      <div class="loading-text">最新記事を取得中...</div>
+      <div class="loading-text">最新記事を取得中... (0/${tags.length})</div>
     </div>`;
 
   const allArticles = [];
+  let completed = 0;
+
   const fetches = tags.map(async tag => {
     try {
       const items = await fetchForTag(tag);
@@ -953,39 +1000,39 @@ async function refreshAll() {
     } catch (e) {
       console.warn(`Failed to fetch tag "${tag}":`, e);
     }
+    completed++;
+    // Progressive: render as each tag completes
+    const loadingText = document.querySelector('.loading-text');
+    if (loadingText) {
+      loadingText.textContent = `最新記事を取得中... (${completed}/${tags.length})`;
+    } else if (allArticles.length > 0) {
+      // Already rendered at least once — update live
+      articles = mergeArticles(allArticles);
+      renderArticles();
+      updateStats();
+    }
   });
 
   await Promise.all(fetches);
 
-  // Merge & deduplicate by link
-  const seen = new Map();
-  allArticles.forEach(a => {
-    const key = a.link;
-    if (seen.has(key)) {
-      const existing = seen.get(key);
-      a.tags.forEach(t => { if (!existing.tags.includes(t)) existing.tags.push(t); });
-    } else {
-      seen.set(key, a);
-    }
-  });
-
-  articles = Array.from(seen.values());
-  articles.sort((a, b) => b.pubDate - a.pubDate);
-
+  articles = mergeArticles(allArticles);
   saveCache();
   renderArticles();
   updateStats();
 
   const now = new Date();
-  document.getElementById('lastUpdated').textContent =
-    `最終更新: ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const timeStr = `最終更新: ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const lu = document.getElementById('lastUpdated');
+  if (lu) lu.textContent = timeStr;
+  const lus = document.getElementById('lastUpdatedSidebar');
+  if (lus) lus.textContent = timeStr;
 
   isLoading = false;
   btn.disabled = false;
   icon.classList.remove('refresh-spin');
 
   if (articles.length === 0) {
-    showToast('記事を取得できませんでした。ネットワークを確認して再度お試しください', 'error');
+    showToast('記事を取得できませんでした。時間をおいて再度お試しください', 'error');
   } else {
     showToast(`${articles.length}件の記事を取得しました`, 'success');
   }
