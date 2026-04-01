@@ -750,11 +750,12 @@ const STORAGE_CACHE = 'techpulse_cache';
 const STORAGE_BOOKMARKS = 'techpulse_bookmarks';
 const STORAGE_DATE_RANGE = 'techpulse_daterange';
 
-// CORS proxies: fallback for when rss2json fails
-// corsproxy.io removed — blocks null origin (file://)
-const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://api.codetabs.com/v1/proxy?quest=',
+// 4 CORS proxies fired simultaneously — first success wins (Promise.any)
+const PROXIES = [
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`,
 ];
 
 const PRESET_TAGS = [
@@ -794,11 +795,11 @@ function checkFileProtocol() {
   banner.innerHTML = `
     <div>
       <strong>⚠️ ローカルファイルとして開かれています</strong><br>
-      ブラウザのセキュリティ制限により、外部サイトへのアクセスがブロックされ記事を取得できません。<br>
-      <strong>解決方法：</strong> ターミナルで以下を実行してからブラウザで開いてください<br>
-      <code>python3 -m http.server 8080</code>
-      &nbsp;→&nbsp;
-      <code>http://localhost:8080/${location.pathname.split('/').pop()}</code>
+      記事取得が不安定になる場合があります。下記URLをブラウザで直接開くことをお勧めします：<br>
+      <a href="https://skuall555.github.io/gas-related-news-app/" target="_blank"
+         style="color:#f0a500;text-decoration:underline;">
+        https://skuall555.github.io/gas-related-news-app/
+      </a>
     </div>
     <button class="close-btn" onclick="document.getElementById('fileBanner').remove()">✕</button>
   `;
@@ -883,85 +884,34 @@ function renderPresets() {
 // ========================
 // Article Fetching
 // ========================
-// Primary: rss2json.com — CORS-enabled, works from file:// (null origin),
-// dedicated RSS service that can bypass Google/Bing fetch restrictions.
-async function fetchViaRSS2JSON(url, tag) {
-  const apiUrl = 'https://api.rss2json.com/v1/api.json?rss_url='
-    + encodeURIComponent(url) + '&count=50&order_by=pubDate&order_dir=desc';
-  const resp = await fetch(apiUrl, { signal: AbortSignal.timeout(12000) });
-  if (!resp.ok) throw new Error('rss2json HTTP ' + resp.status);
-  const data = await resp.json();
-  if (data.status !== 'ok') throw new Error('rss2json: ' + (data.message || data.status));
-  return parseRSS2JSONItems(data.items || [], tag);
-}
-
-function parseRSS2JSONItems(items, tag) {
-  return items.filter(i => i.link).map(item => {
-    const div = document.createElement('div');
-    div.innerHTML = item.description || item.content || '';
-    const snippet = div.textContent.trim().substring(0, 300);
-    return {
-      id: item.link + tag,
-      title: cleanText(item.title || ''),
-      link: item.link,
-      pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
-      snippet,
-      source: item.author || extractDomain(item.link),
-      tags: [tag]
-    };
-  });
-}
-
-// Fallback: CORS proxies returning raw XML
-async function fetchViaProxy(url, tag) {
-  const attempts = CORS_PROXIES.map(async proxy => {
-    const resp = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const text = await resp.text();
-    if (!text || !(text.includes('<rss') || text.includes('<?xml') || text.includes('<feed'))) {
-      throw new Error('Not RSS/XML');
-    }
-    return parseRSS(text, tag);
-  });
-
-  // Also try allorigins /get endpoint (JSON wrapper — different behavior from /raw)
-  attempts.push((async () => {
-    const resp = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
-    if (!resp.ok) throw new Error('allorigins/get HTTP ' + resp.status);
-    const data = await resp.json();
-    if (!data.contents) throw new Error('allorigins/get empty');
-    if (!(data.contents.includes('<rss') || data.contents.includes('<?xml') || data.contents.includes('<feed'))) {
-      throw new Error('allorigins/get not RSS');
-    }
-    return parseRSS(data.contents, tag);
-  })());
-
+// All 4 proxies fired simultaneously — whichever responds first wins
+async function fetchRSS(targetUrl) {
+  const signal = AbortSignal.timeout(14000);
+  const attempts = PROXIES.map(make =>
+    fetch(make(targetUrl), { signal })
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(t => { if (!t.includes('<')) throw new Error('empty response'); return t; })
+  );
   return Promise.any(attempts);
 }
 
-// Try direct fetch (works if target site sends Access-Control-Allow-Origin: *)
-async function fetchDirect(url, tag) {
-  const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!resp.ok) throw new Error('Direct HTTP ' + resp.status);
-  const text = await resp.text();
-  if (!(text.includes('<rss') || text.includes('<?xml') || text.includes('<feed'))) {
-    throw new Error('Not RSS/XML');
+async function fetchForTag(tag) {
+  // Try with date filter first; if empty, retry without filter
+  const queries = [
+    `${tag} when:${dateRange}`,
+    tag,
+  ];
+  for (const q of queries) {
+    const googleUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ja&gl=JP&ceid=JP:ja`;
+    try {
+      const text = await fetchRSS(googleUrl);
+      const items = parseRSS(text, tag);
+      if (items.length > 0) return items;
+    } catch (e) {
+      console.warn(`"${tag}" [${q}] 取得失敗:`, e.message);
+    }
   }
-  return parseRSS(text, tag);
-}
-
-// Unified fetch: direct → rss2json → proxies, first success wins
-async function fetchFeed(url, tag) {
-  try {
-    return await Promise.any([
-      fetchDirect(url, tag),
-      fetchViaRSS2JSON(url, tag),
-      fetchViaProxy(url, tag),
-    ]);
-  } catch {
-    console.warn('All fetch methods failed for:', url);
-    return [];
-  }
+  return [];
 }
 
 function parseRSS(xml, tag) {
@@ -1031,27 +981,6 @@ function cleanText(text) {
   const div = document.createElement('div');
   div.innerHTML = text;
   return div.textContent.trim();
-}
-
-async function fetchForTag(tag) {
-  // PR TIMES keyword RSS: works for ANY tag
-  // Use raw tag (no pre-encoding) so rss2json/proxies handle encoding themselves
-  const prtimesUrl = `https://prtimes.jp/topics_keywords/${tag}/feed`;
-
-  // Google News RSS (with date range — may fail via proxy, but try)
-  const q = encodeURIComponent(`${tag} when:${dateRange}`);
-  const googleUrl = `https://news.google.com/rss/search?q=${q}&hl=ja&gl=JP&ceid=JP:ja`;
-
-  // はてなブックマーク RSS (popular articles — may fail, but try)
-  const hatenaUrl = `https://b.hatena.ne.jp/q/${encodeURIComponent(tag)}?mode=rss&sort=popular`;
-
-  // PR TIMES first (most reliable), then Google/Hatena as bonus
-  const results = await Promise.all([
-    fetchFeed(prtimesUrl, tag),
-    fetchFeed(googleUrl, tag),
-    fetchFeed(hatenaUrl, tag),
-  ]);
-  return results.flat();
 }
 
 function mergeArticles(pool) {
