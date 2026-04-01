@@ -720,7 +720,8 @@ async function fetchRSS(url) {
       const resp = await fetch(proxy + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
       if (resp.ok) {
         const text = await resp.text();
-        if (text && text.includes('<item>')) return text;
+        // Accept any XML/RSS response (even empty feed with 0 items)
+        if (text && (text.includes('<rss') || text.includes('<?xml') || text.includes('<feed'))) return text;
       }
     } catch (e) {
       console.warn(`Proxy failed (${proxy}):`, e.message);
