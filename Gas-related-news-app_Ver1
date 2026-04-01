@@ -524,6 +524,73 @@ body {
   background: var(--tag-bg);
 }
 
+/* Date Range */
+.date-range-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238a8ea3' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+.date-range-select:focus { border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+.date-range-select option { background: var(--surface); }
+.date-range-hint { font-size: 11px; color: var(--text-dim); margin-top: 8px; }
+
+/* Bookmark */
+.article { position: relative; }
+.btn-bookmark {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: transparent;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  color: var(--text-dim);
+  transition: all 0.15s;
+  padding: 4px 6px;
+  line-height: 1;
+  z-index: 1;
+  border-radius: 6px;
+}
+.btn-bookmark:hover { color: #f0c040; background: rgba(240,192,64,0.12); }
+.btn-bookmark.bookmarked { color: #f0c040; }
+
+.tag-bm {
+  padding: 8px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+.tag-bm:hover { background: var(--border); }
+.tag-bm.active { background: #5c4a00; border-color: #f0c040; color: #f0c040; }
+.tag-bm .bm-count {
+  font-size: 11px;
+  background: rgba(255,255,255,0.12);
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -583,6 +650,18 @@ body {
         </div>
       </div>
     </div>
+
+    <!-- Date Range -->
+    <div class="panel">
+      <div class="panel-title">&#x1F4C5; 取得期間</div>
+      <select id="dateRangeSelect" class="date-range-select" onchange="saveDateRange()">
+        <option value="7d">過去 7日</option>
+        <option value="30d">過去 30日</option>
+        <option value="90d">過去 90日</option>
+        <option value="365d">過去 1年</option>
+      </select>
+      <p class="date-range-hint">変更後は「更新」ボタンを押してください</p>
+    </div>
   </aside>
 
   <section class="feed">
@@ -607,11 +686,28 @@ body {
 // ========================
 const STORAGE_TAGS = 'techpulse_tags';
 const STORAGE_CACHE = 'techpulse_cache';
+const STORAGE_BOOKMARKS = 'techpulse_bookmarks';
+const STORAGE_DATE_RANGE = 'techpulse_daterange';
+
 const CORS_PROXIES = [
   'https://corsproxy.io/?',
   'https://api.allorigins.win/raw?url=',
   'https://api.codetabs.com/v1/proxy?quest='
 ];
+
+// PR TIMES RSS feeds per tag keyword
+const PRTIMES_RSS = {
+  'ドローン':        'https://prtimes.jp/topics_keywords/ドローン/feed',
+  '自動運転':        'https://prtimes.jp/topics_keywords/自動運転/feed',
+  'AI 人工知能':     'https://prtimes.jp/topics_keywords/AI/feed',
+  'EV 電気自動車':   'https://prtimes.jp/topics_keywords/電気自動車/feed',
+  '水素エネルギー':  'https://prtimes.jp/topics_keywords/水素エネルギー/feed',
+  '再生可能エネルギー': 'https://prtimes.jp/topics_keywords/再生可能エネルギー/feed',
+  'スマートシティ':  'https://prtimes.jp/topics_keywords/スマートシティ/feed',
+  '半導体':          'https://prtimes.jp/topics_keywords/半導体/feed',
+  '宇宙開発':        'https://prtimes.jp/topics_keywords/宇宙/feed',
+  'IoT':             'https://prtimes.jp/topics_keywords/IoT/feed',
+};
 
 const PRESET_TAGS = [
   '自動運転', 'AI 人工知能', '都市ガス', 'LPガス',
@@ -623,15 +719,19 @@ const PRESET_TAGS = [
 ];
 
 let tags = [];
-let activeFilter = null; // null = all
+let activeFilter = null; // null = all, '__bookmarks__' = bookmarks
 let articles = [];
 let isLoading = false;
+let bookmarks = new Set();
+let dateRange = '30d';
 
 // ========================
 // Init
 // ========================
 function init() {
   loadTags();
+  loadBookmarks();
+  loadDateRange();
   renderTags();
   renderPresets();
   loadCache();
@@ -691,7 +791,9 @@ function setFilter(tag) {
 
 function renderTags() {
   const list = document.getElementById('tagList');
+  const bmCount = bookmarks.size;
   let html = `<div class="tag-all ${activeFilter === null ? 'active' : ''}" onclick="setFilter(null)">すべて</div>`;
+  html += `<div class="tag-bm ${activeFilter === '__bookmarks__' ? 'active' : ''}" onclick="setFilter('__bookmarks__')">★ ブクマ <span class="bm-count">${bmCount}</span></div>`;
   tags.forEach(tag => {
     html += `
       <div class="tag ${activeFilter === tag ? 'active' : ''}" onclick="setFilter('${escHtml(tag)}')">
@@ -737,33 +839,50 @@ function parseRSS(xml, tag) {
     console.warn(`RSS parse error for tag "${tag}"`);
     return [];
   }
-  const items = doc.querySelectorAll('item');
+
+  // Support both RSS 2.0 <item> and Atom <entry>
+  const items = doc.querySelectorAll('item, entry');
   const result = [];
 
   items.forEach(item => {
     const title = item.querySelector('title')?.textContent || '';
-    // <link> in RSS is sometimes a sibling text node, not child text
-    let link = item.querySelector('link')?.textContent || '';
-    if (!link) {
-      // Fallback: try nextSibling of <link> element (RSS quirk with DOMParser)
-      const linkEl = item.querySelector('link');
-      if (linkEl && linkEl.nextSibling) link = linkEl.nextSibling.textContent?.trim() || '';
+
+    // RSS: <link>URL</link>  |  Atom: <link href="URL"/>
+    // DOMParser quirk: RSS <link> text is sometimes in nextSibling
+    let link = '';
+    const linkEl = item.querySelector('link');
+    if (linkEl) {
+      link = linkEl.getAttribute('href') ||          // Atom
+             linkEl.textContent?.trim() ||            // RSS normal
+             linkEl.nextSibling?.textContent?.trim(); // RSS DOMParser quirk
     }
-    if (!link) link = item.querySelector('guid')?.textContent || '';
-    const pubDate = item.querySelector('pubDate')?.textContent || '';
-    const description = item.querySelector('description')?.textContent || '';
+    if (!link) link = item.querySelector('guid')?.textContent?.trim() || '';
+
+    // RSS: <pubDate>  |  Atom: <published> or <updated>
+    const pubDateStr =
+      item.querySelector('pubDate')?.textContent ||
+      item.querySelector('published')?.textContent ||
+      item.querySelector('updated')?.textContent || '';
+
+    // RSS: <description>  |  Atom: <summary> or <content>
+    const description =
+      item.querySelector('description')?.textContent ||
+      item.querySelector('summary')?.textContent ||
+      item.querySelector('content')?.textContent || '';
+
     const source = item.querySelector('source')?.textContent || extractDomain(link);
 
-    // Clean HTML from description
     const div = document.createElement('div');
     div.innerHTML = description;
     const snippet = div.textContent.trim().substring(0, 300);
+
+    if (!link) return; // skip items without a link
 
     result.push({
       id: link + tag,
       title: cleanText(title),
       link,
-      pubDate: pubDate ? new Date(pubDate) : new Date(),
+      pubDate: pubDateStr ? new Date(pubDateStr) : new Date(),
       snippet,
       source,
       tags: [tag]
@@ -783,11 +902,28 @@ function cleanText(text) {
 }
 
 async function fetchForTag(tag) {
-  const query = encodeURIComponent(tag);
-  const url = `https://news.google.com/rss/search?q=${query}+when:7d&hl=ja&gl=JP&ceid=JP:ja`;
-  const xml = await fetchRSS(url);
-  if (!xml) return [];
-  return parseRSS(xml, tag);
+  // Use URLSearchParams for correct Japanese encoding (no manual encodeURIComponent)
+  const params = new URLSearchParams({
+    q: `${tag} when:${dateRange}`,
+    hl: 'ja',
+    gl: 'JP',
+    ceid: 'JP:ja'
+  });
+  const googleUrl = `https://news.google.com/rss/search?${params}`;
+
+  const fetches = [
+    fetchRSS(googleUrl).then(xml => xml ? parseRSS(xml, tag) : [])
+  ];
+
+  // Also fetch from PR TIMES if a feed exists for this tag
+  if (PRTIMES_RSS[tag]) {
+    fetches.push(
+      fetchRSS(PRTIMES_RSS[tag]).then(xml => xml ? parseRSS(xml, tag) : [])
+    );
+  }
+
+  const results = await Promise.all(fetches);
+  return results.flat();
 }
 
 async function refreshAll() {
@@ -856,6 +992,57 @@ async function refreshAll() {
 }
 
 // ========================
+// Bookmarks
+// ========================
+function loadBookmarks() {
+  try {
+    const saved = localStorage.getItem(STORAGE_BOOKMARKS);
+    bookmarks = saved ? new Set(JSON.parse(saved)) : new Set();
+  } catch { bookmarks = new Set(); }
+}
+
+function saveBookmarks() {
+  localStorage.setItem(STORAGE_BOOKMARKS, JSON.stringify([...bookmarks]));
+}
+
+function handleBookmarkClick(btn, event) {
+  event.preventDefault();
+  event.stopPropagation();
+  const link = btn.dataset.link;
+  if (bookmarks.has(link)) {
+    bookmarks.delete(link);
+  } else {
+    bookmarks.add(link);
+  }
+  saveBookmarks();
+  const bmed = bookmarks.has(link);
+  btn.className = `btn-bookmark ${bmed ? 'bookmarked' : ''}`;
+  btn.textContent = bmed ? '★' : '☆';
+  btn.title = bmed ? 'ブックマーク解除' : 'ブックマーク追加';
+  // Update bookmark count badge without full re-render
+  document.querySelectorAll('.tag-bm .bm-count').forEach(el => {
+    el.textContent = bookmarks.size;
+  });
+  // If in bookmarks view, re-render to reflect removal
+  if (activeFilter === '__bookmarks__') renderArticles();
+}
+
+// ========================
+// Date Range
+// ========================
+function loadDateRange() {
+  const saved = localStorage.getItem(STORAGE_DATE_RANGE);
+  dateRange = saved || '30d';
+  const sel = document.getElementById('dateRangeSelect');
+  if (sel) sel.value = dateRange;
+}
+
+function saveDateRange() {
+  dateRange = document.getElementById('dateRangeSelect').value;
+  localStorage.setItem(STORAGE_DATE_RANGE, dateRange);
+}
+
+// ========================
 // Cache
 // ========================
 function saveCache() {
@@ -883,7 +1070,10 @@ function renderArticles() {
   const countEl = document.getElementById('feedCount');
 
   let filtered = articles;
-  if (activeFilter) {
+  if (activeFilter === '__bookmarks__') {
+    filtered = articles.filter(a => bookmarks.has(a.link));
+    titleEl.textContent = 'ブックマーク';
+  } else if (activeFilter) {
     filtered = articles.filter(a => a.tags.includes(activeFilter));
     titleEl.textContent = `${activeFilter} の記事`;
   } else {
@@ -903,16 +1093,27 @@ function renderArticles() {
   }
 
   if (filtered.length === 0) {
+    const msg = activeFilter === '__bookmarks__'
+      ? 'まだブックマークがありません<br>記事右上の ☆ をクリックして追加できます'
+      : `「${escHtml(activeFilter)}」に一致する記事がありません`;
     list.innerHTML = `
       <div class="empty">
-        <div class="empty-icon">&#x1F50D;</div>
-        <p>「${escHtml(activeFilter)}」に一致する記事がありません</p>
+        <div class="empty-icon">${activeFilter === '__bookmarks__' ? '★' : '&#x1F50D;'}</div>
+        <p>${msg}</p>
       </div>`;
     return;
   }
 
-  list.innerHTML = filtered.map(a => `
+  list.innerHTML = filtered.map(a => {
+    const bmed = bookmarks.has(a.link);
+    return `
     <a class="article" href="${escHtml(a.link)}" target="_blank" rel="noopener">
+      <button class="btn-bookmark ${bmed ? 'bookmarked' : ''}"
+              data-link="${escHtml(a.link)}"
+              onclick="handleBookmarkClick(this,event)"
+              title="${bmed ? 'ブックマーク解除' : 'ブックマーク追加'}">
+        ${bmed ? '★' : '☆'}
+      </button>
       <div class="article-source">
         <span class="article-source-dot"></span>
         ${escHtml(a.source)}
@@ -925,8 +1126,8 @@ function renderArticles() {
           ${a.tags.map(t => `<span class="article-tag">${escHtml(t)}</span>`).join('')}
         </div>
       </div>
-    </a>
-  `).join('');
+    </a>`;
+  }).join('');
 }
 
 function formatDate(date) {
