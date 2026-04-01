@@ -551,6 +551,38 @@ body {
 .btn-refresh:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
 .last-updated-sidebar { font-size: 11px; color: var(--text-dim); text-align: center; min-height: 16px; }
 
+/* File protocol warning banner */
+#fileBanner {
+  background: #2a1800;
+  border-bottom: 2px solid #f0a500;
+  padding: 14px 24px;
+  font-size: 13px;
+  line-height: 1.7;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+#fileBanner code {
+  background: #1a0f00;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #ffc;
+  user-select: all;
+}
+#fileBanner strong { color: #f0a500; }
+#fileBanner .close-btn {
+  background: none;
+  border: none;
+  color: #f0a500;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
 /* Date Range */
 .date-range-select {
   width: 100%;
@@ -745,6 +777,7 @@ let dateRange = '30d';
 // Init
 // ========================
 function init() {
+  checkFileProtocol();
   loadTags();
   loadBookmarks();
   loadDateRange();
@@ -752,6 +785,24 @@ function init() {
   renderPresets();
   loadCache();
   renderArticles();
+}
+
+function checkFileProtocol() {
+  if (window.location.protocol !== 'file:') return;
+  const banner = document.createElement('div');
+  banner.id = 'fileBanner';
+  banner.innerHTML = `
+    <div>
+      <strong>⚠️ ローカルファイルとして開かれています</strong><br>
+      ブラウザのセキュリティ制限により、外部サイトへのアクセスがブロックされ記事を取得できません。<br>
+      <strong>解決方法：</strong> ターミナルで以下を実行してからブラウザで開いてください<br>
+      <code>python3 -m http.server 8080</code>
+      &nbsp;→&nbsp;
+      <code>http://localhost:8080/${location.pathname.split('/').pop()}</code>
+    </div>
+    <button class="close-btn" onclick="document.getElementById('fileBanner').remove()">✕</button>
+  `;
+  document.body.prepend(banner);
 }
 
 // ========================
@@ -888,10 +939,22 @@ async function fetchViaProxy(url, tag) {
   return Promise.any(attempts);
 }
 
-// Unified fetch: rss2json + proxies simultaneously, first success wins
+// Try direct fetch (works if target site sends Access-Control-Allow-Origin: *)
+async function fetchDirect(url, tag) {
+  const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!resp.ok) throw new Error('Direct HTTP ' + resp.status);
+  const text = await resp.text();
+  if (!(text.includes('<rss') || text.includes('<?xml') || text.includes('<feed'))) {
+    throw new Error('Not RSS/XML');
+  }
+  return parseRSS(text, tag);
+}
+
+// Unified fetch: direct → rss2json → proxies, first success wins
 async function fetchFeed(url, tag) {
   try {
     return await Promise.any([
+      fetchDirect(url, tag),
       fetchViaRSS2JSON(url, tag),
       fetchViaProxy(url, tag),
     ]);
@@ -971,9 +1034,9 @@ function cleanText(text) {
 }
 
 async function fetchForTag(tag) {
-  // PR TIMES keyword RSS: works for ANY tag, most reliable source
-  // (not blocked by proxy services unlike Google/Bing)
-  const prtimesUrl = `https://prtimes.jp/topics_keywords/${encodeURIComponent(tag)}/feed`;
+  // PR TIMES keyword RSS: works for ANY tag
+  // Use raw tag (no pre-encoding) so rss2json/proxies handle encoding themselves
+  const prtimesUrl = `https://prtimes.jp/topics_keywords/${tag}/feed`;
 
   // Google News RSS (with date range — may fail via proxy, but try)
   const q = encodeURIComponent(`${tag} when:${dateRange}`);
