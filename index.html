@@ -901,19 +901,44 @@ function renderPresets() {
 // ========================
 // Article Fetching
 // ========================
-// All 4 proxies fired simultaneously — whichever responds first wins
-async function fetchRSS(targetUrl) {
+// 方法A: XMLプロキシ経由 (Netlify関数 → allorigins → codetabs を並列)
+async function fetchViaXMLProxies(targetUrl, tag) {
   const signal = AbortSignal.timeout(14000);
   const attempts = PROXIES.map(make =>
     fetch(make(targetUrl), { signal })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-      .then(t => { if (!t.includes('<')) throw new Error('empty response'); return t; })
+      .then(t => {
+        if (!t.includes('<item>') && !t.includes('<entry>')) throw new Error('no RSS items');
+        const items = parseRSS(t, tag);
+        if (!items.length) throw new Error('parsed 0 items');
+        return items;
+      })
   );
   return Promise.any(attempts);
 }
 
+// 方法B: rss2json.com API (CORS対応JSON, APIキー不要, count指定なし)
+async function fetchViaRSS2JSON(googleUrl, tag) {
+  const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(googleUrl)}`;
+  const resp = await fetch(apiUrl, { signal: AbortSignal.timeout(12000) });
+  if (!resp.ok) throw new Error('rss2json HTTP ' + resp.status);
+  const data = await resp.json();
+  if (data.status !== 'ok') throw new Error('rss2json: ' + (data.message || data.status));
+  const items = (data.items || []).filter(i => i.link).map(item => ({
+    id: item.link + tag,
+    title: cleanText(item.title || ''),
+    link: item.link,
+    pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
+    snippet: cleanText(item.description || '').substring(0, 300),
+    source: item.author || extractDomain(item.link),
+    tags: [tag],
+  }));
+  if (!items.length) throw new Error('rss2json 0 items');
+  return items;
+}
+
 async function fetchForTag(tag) {
-  // Try with date filter first; if empty, retry without filter
+  // 日付フィルタあり → なし の順で試す
   const queries = [
     `${tag} when:${dateRange}`,
     tag,
@@ -921,11 +946,14 @@ async function fetchForTag(tag) {
   for (const q of queries) {
     const googleUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=ja&gl=JP&ceid=JP:ja`;
     try {
-      const text = await fetchRSS(googleUrl);
-      const items = parseRSS(text, tag);
+      // XMLプロキシとrss2jsonを並列実行 — 先に成功した方を採用
+      const items = await Promise.any([
+        fetchViaXMLProxies(googleUrl, tag),
+        fetchViaRSS2JSON(googleUrl, tag),
+      ]);
       if (items.length > 0) return items;
     } catch (e) {
-      console.warn(`"${tag}" [${q}] 取得失敗:`, e.message);
+      console.warn(`"${tag}" [${q}] 全メソッド失敗:`, e.message);
     }
   }
   return [];

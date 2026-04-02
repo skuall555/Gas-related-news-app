@@ -4,10 +4,21 @@ const { URL } = require('url');
 // Only allow fetching from trusted news domains
 const ALLOWED_HOSTS = ['news.google.com'];
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
 exports.handler = async (event) => {
+  // CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers: CORS_HEADERS, body: '' };
+  }
+
   const targetUrl = event.queryStringParameters?.url;
   if (!targetUrl) {
-    return { statusCode: 400, body: 'Missing url parameter' };
+    return { statusCode: 400, headers: CORS_HEADERS, body: 'Missing url parameter' };
   }
 
   let parsed;
@@ -18,7 +29,7 @@ exports.handler = async (event) => {
   }
 
   if (!ALLOWED_HOSTS.includes(parsed.hostname)) {
-    return { statusCode: 403, body: 'Domain not allowed' };
+    return { statusCode: 403, headers: CORS_HEADERS, body: 'Domain not allowed' };
   }
 
   return new Promise((resolve) => {
@@ -41,7 +52,7 @@ exports.handler = async (event) => {
         resolve({
           statusCode: 200,
           headers: {
-            'Access-Control-Allow-Origin': '*',
+            ...CORS_HEADERS,
             'Content-Type': 'text/xml; charset=utf-8',
             'Cache-Control': 'public, max-age=180',
           },
@@ -50,8 +61,8 @@ exports.handler = async (event) => {
       });
     });
 
-    req.on('error', (e) => resolve({ statusCode: 502, body: e.message }));
-    req.on('timeout', () => { req.destroy(); resolve({ statusCode: 504, body: 'Timeout' }); });
+    req.on('error', (e) => resolve({ statusCode: 502, headers: CORS_HEADERS, body: e.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ statusCode: 504, headers: CORS_HEADERS, body: 'Timeout' }); });
     req.end();
   });
 };
