@@ -768,12 +768,11 @@ const STORAGE_CACHE = 'techpulse_cache';
 const STORAGE_BOOKMARKS = 'techpulse_bookmarks';
 const STORAGE_DATE_RANGE = 'techpulse_daterange';
 
-// 4 CORS proxies fired simultaneously — first success wins (Promise.any)
+// 自前Netlify関数を最優先、外部プロキシを後続フォールバックに
 const PROXIES = [
+  u => `/.netlify/functions/proxy?url=${encodeURIComponent(u)}`,   // 自前サーバー (Netlify上で動作)
   u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-  u => `https://thingproxy.freeboard.io/fetch/${u}`,
 ];
 
 const PRESET_TAGS = [
