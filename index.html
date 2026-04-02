@@ -655,6 +655,14 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Touch: prevent 300ms delay and double-tap zoom on all interactive elements */
+button, .tag, .tag-all, .tag-bm, .preset-tag, .btn-add, .btn-refresh, .btn-bookmark, .tag-remove {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+input { touch-action: manipulation; }
 </style>
 </head>
 <body>
@@ -778,7 +786,7 @@ let dateRange = '30d';
 // Init
 // ========================
 function init() {
-  checkFileProtocol();
+  checkRestrictedEnvironment();
   loadTags();
   loadBookmarks();
   loadDateRange();
@@ -788,16 +796,27 @@ function init() {
   renderArticles();
 }
 
-function checkFileProtocol() {
-  if (window.location.protocol !== 'file:') return;
+function checkRestrictedEnvironment() {
+  const proto = window.location.protocol;
+  const host = window.location.hostname;
+  const isOneDrive = host.includes('onedrive.live.com') || host.includes('sharepoint.com') ||
+                     host.includes('1drv.ms') || host.includes('office.com');
+  const isFileProto = proto === 'file:';
+
+  if (!isOneDrive && !isFileProto) return;
+
+  const reason = isOneDrive
+    ? '⚠️ OneDrive / SharePointで開かれています — スクリプトが制限され、ボタンが動作しない場合があります。'
+    : '⚠️ ローカルファイルとして開かれています — 記事取得が不安定になる場合があります。';
+
   const banner = document.createElement('div');
   banner.id = 'fileBanner';
   banner.innerHTML = `
     <div>
-      <strong>⚠️ ローカルファイルとして開かれています</strong><br>
-      記事取得が不安定になる場合があります。下記URLをブラウザで直接開くことをお勧めします：<br>
+      <strong>${reason}</strong><br>
+      下記URLをブラウザで直接開いてください：<br>
       <a href="https://skuall555.github.io/gas-related-news-app/" target="_blank"
-         style="color:#f0a500;text-decoration:underline;">
+         style="color:#f0a500;text-decoration:underline;font-weight:bold;">
         https://skuall555.github.io/gas-related-news-app/
       </a>
     </div>
@@ -812,7 +831,7 @@ function checkFileProtocol() {
 function loadTags() {
   try {
     const saved = localStorage.getItem(STORAGE_TAGS);
-    tags = saved ? JSON.parse(saved) : ['AI 人工知能', '自動運転', 'DX デジタル変革'];
+    tags = saved ? JSON.parse(saved) : [];
     if (!saved) saveTags();
   } catch { tags = []; }
 }
