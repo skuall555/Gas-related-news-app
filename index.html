@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TechPulse - 最新技術コラム アグリゲーター</title>
+<title>てじラボ - 技術に関するコラムが丸わかり</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -59,15 +59,30 @@ body {
 }
 
 .logo-icon {
-  width: 42px;
+  position: relative;
+  width: 48px;
   height: 42px;
-  background: var(--accent);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 22px;
-  box-shadow: 0 0 20px var(--accent-glow);
+  flex-shrink: 0;
+}
+.logo-icon .circle-blue {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 16px rgba(37,99,235,0.5);
+  position: absolute;
+  top: 3px;
+  left: 0;
+}
+.logo-icon .circle-red {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #e53e3e;
+  box-shadow: 0 0 10px rgba(229,62,62,0.5);
+  position: absolute;
+  bottom: 0;
+  right: 0;
 }
 
 .logo h1 {
@@ -662,10 +677,13 @@ body {
 <header class="header">
   <div class="header-inner">
     <div class="logo">
-      <div class="logo-icon">&#x26A1;</div>
+      <div class="logo-icon">
+        <div class="circle-blue"></div>
+        <div class="circle-red"></div>
+      </div>
       <div>
-        <h1>TechPulse</h1>
-        <p>最新技術コラム アグリゲーター</p>
+        <h1>てじラボ</h1>
+        <p>技術に関するコラムが丸わかり</p>
       </div>
     </div>
     <div class="header-actions">
